@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Event Details</title>
+
+    <!-- Bootstrap & FontAwesome -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .event-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 30px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+
+        .event-title {
+            font-size: 30px;
+            font-weight: 600;
+            color: #007bff;
+            text-align: center;
+        }
+
+        .event-description {
+            text-align: center;
+            font-size: 18px;
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+
+        .event-info {
+            font-size: 17px;
+            margin-bottom: 10px;
+        }
+
+        .btn-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .btn-custom {
+            font-size: 15px;
+            border-radius: 6px;
+            padding: 8px 14px;
+        }
+
+        .badge {
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .modal-title {
+            font-weight: 600;
+        }
+
+        .form-label {
+            font-weight: 500;
+        }
+
+        .checkbox-group {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <div th:replace="fragments/navbar :: navbar"></div>
+
+    <!-- Event Details -->
+    <div class="container event-container">
+        <h2 class="event-title" th:text="${event.name}"></h2>
+        <hr>
+         <!-- Status -->
+        <div class="text-center">
+            <span class="badge bg-success" th:if="${!event.isExpired}">Active</span>
+            <span class="badge bg-secondary" th:if="${event.isExpired}">Expired</span>
+        </div>
+        
+        <pre style="white-space: pre-wrap;" th:text="${event.description}"></pre>
+
+		<div class="text-center mb-4">
+    <img th:src="@{'/images/Event_Card_images/{event.imageName}}"
+         class="img-fluid rounded"
+         alt="Event Image"
+         style="max-height: 300px; object-fit: cover; width: 100%; border-radius: 10px;">
+</div>
+		
+       
+
+        <!-- Event Info -->
+        <p class="event-info"><strong><i class="fas fa-map-marker-alt text-danger"></i> Location:</strong> <span th:text="${event.location}"></span></p>
+        <p class="event-info"><strong><i class="fas fa-calendar-alt text-success"></i> Date:</strong> <span th:text="${#temporals.format(event.eventDate, 'dd MMM yyyy HH:mm')}"></span></p>
+
+        <!-- Delete Event (Only for Creator) -->
+        <form id="deleteEventForm" th:action="@{/events/{eventId}(eventId=${event.id})}" method="post" th:if="${createdById == loggedInUserId}">
+            <input type="hidden" name="_method" value="delete" />
+            <input type="hidden" name="eventId" th:value="${event.id}" />
+            <div class="checkbox-group">
+                <label><input type="checkbox" id="confirmDelete1" onclick="toggleDeleteButton()"> I confirm deletion</label><br>
+                <label><input type="checkbox" id="confirmDelete2" onclick="toggleDeleteButton()"> I am absolutely sure</label>
+            </div>
+            <button type="button" id="deleteBtn" class="btn btn-danger btn-custom" disabled onclick="confirmDelete()">🗑 Delete</button>
+        </form>
+
+        <!-- Join/Leave/Modify Buttons -->
+        <div class="btn-container">
+            <form th:action="@{/events/join}" method="post" th:if="${createdById != loggedInUserId and !isJoined and !event.isExpired}">
+                <input type="hidden" name="eventId" th:value="${event.id}" />
+                <button type="submit" class="btn btn-success btn-custom">✅ Join</button>
+            </form>
+
+            <form th:action="@{/events/leave}" method="post" th:if="${createdById != loggedInUserId and isJoined}">
+                <input type="hidden" name="eventId" th:value="${event.id}" />
+                <button type="submit" class="btn btn-warning btn-custom">🚪 Leave</button>
+            </form>
+
+            <button class="btn btn-info btn-custom"
+                th:if="${createdById == loggedInUserId}"
+                th:attr="onclick=|editEventModal('${event.id}', '${event.name}', '${event.description}', '${event.location}', '${#temporals.format(event.eventDate, 'yyyy-MM-dd''T''HH:mm')}')|">
+                ✏ Modify
+            </button>
+
+            <a href="/my-events" class="btn btn-outline-secondary btn-custom">⬅ My Events</a>
+            <a href="/dashboard" class="btn btn-outline-secondary btn-custom">⬅ Dashboard</a>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="deleteSuccessModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content text-center">
+                <div class="modal-header">
+                    <h5 class="modal-title">Event Deleted</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>The event has been successfully deleted.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modify Event Modal -->
+    <div class="modal fade" id="editEventModal" tabindex="-1" aria-labelledby="editEventModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Modify Event</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editEventForm" action="/events/update" method="post">
+                        <input type="hidden" id="editEventId" name="id" />
+                        <div class="mb-3"><label class="form-label">Event Name:</label><input type="text" id="editEventName" name="name" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label">Description:</label><textarea id="editEventDescription" name="description" class="form-control" required></textarea></div>
+                        <div class="mb-3"><label class="form-label">Location:</label><input type="text" id="editEventLocation" name="location" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label">Event Date:</label><input type="datetime-local" id="editEventDate" name="eventDate" class="form-control" required></div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save Changes</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Event Modal -->
+    <div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create an Event</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="/events/create" method="post" th:object="${eventDTO}">
+                        <div class="mb-3"><label class="form-label">Event Name:</label><input type="text" th:field="*{name}" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label">Description:</label><textarea th:field="*{description}" class="form-control" required></textarea></div>
+                        <div class="mb-3"><label class="form-label">Location:</label><input type="text" th:field="*{location}" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label">Event Date:</label><input type="datetime-local" th:field="*{eventDate}" class="form-control" required></div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create Event</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Functions -->
+    <script>
+        function toggleDeleteButton() {
+            const c1 = document.getElementById("confirmDelete1").checked;
+            const c2 = document.getElementById("confirmDelete2").checked;
+            document.getElementById("deleteBtn").disabled = !(c1 && c2);
+        }
+
+        function confirmDelete() {
+            if (confirm("Are you absolutely sure you want to delete this event? This action cannot be undone!")) {
+                document.getElementById("deleteEventForm").submit();
+                setTimeout(() => {
+                    let successModal = new bootstrap.Modal(document.getElementById("deleteSuccessModal"));
+                    successModal.show();
+                }, 1000);
+            }
+        }
+
+        function editEventModal(id, name, description, location, date) {
+            document.getElementById('editEventId').value = id;
+            document.getElementById('editEventName').value = name;
+            document.getElementById('editEventDescription').value = description;
+            document.getElementById('editEventLocation').value = location;
+            document.getElementById('editEventDate').value = date;
+
+            new bootstrap.Modal(document.getElementById('editEventModal')).show();
+        }
+    </script>
+</body>
+</html>

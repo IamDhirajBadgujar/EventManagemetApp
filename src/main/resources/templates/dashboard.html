@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .card {
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .event-card {
+            position: relative;
+            height: 300px;
+            background-size: cover;
+            background-position: center right;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .event-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, rgba(255, 255, 255, 0.9) 30%, rgba(255, 255, 255, 0.05) 100%);
+            z-index: 1;
+            transition: background 0.3s ease;
+        }
+
+        .event-card:hover {
+            transform: scale(1.03);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .event-card:hover::before {
+            background: linear-gradient(to right, rgba(255, 255, 255, 0.8) 20%, rgba(255, 255, 255, 0.05) 100%);
+        }
+
+        .event-card-content {
+            position: relative;
+            z-index: 2;
+            max-width: 60%;
+        }
+
+        .event-card h5,
+        .event-card p,
+        .event-card span {
+            color: #000;
+        }
+
+        .event-card .badge {
+            font-size: 0.75rem;
+        }
+
+        @media (max-width: 768px) {
+            .event-card {
+                flex-direction: column;
+                height: auto;
+                padding: 1rem;
+            }
+
+            .event-card-content {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div th:replace="fragments/navbar :: navbar"></div>
+
+    <!-- Dashboard Header -->
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center p-3 bg-white rounded-3 shadow-sm flex-wrap">
+            <h4 class="mb-0 text-dark">Dashboard</h4>
+
+            <div class="d-flex align-items-center gap-3">
+                <!-- Search Bar -->
+                <form class="d-flex align-items-center" method="get" action="/dashboard">
+                    <div class="input-group">
+                        <input type="search" name="search" class="form-control" placeholder="Search by name..." aria-label="Search" th:value="${search}">
+                        <button class="btn btn-outline-primary" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Filter Toggle Button -->
+                <button class="btn btn-outline-secondary" id="toggleFilterBtn" type="button">
+                    <i class="fas fa-filter me-1"></i> Filter
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Panel -->
+    <div class="container mt-3" id="filterBar" style="display: none;">
+        <form method="get" action="/dashboard" class="row g-3 align-items-end bg-white p-4 rounded-3 shadow-sm">
+            <!-- Location Dropdown -->
+            <div class="col-md-5">
+                <label for="location" class="form-label fw-semibold text-dark">Location</label>
+                <select class="form-select" id="location" name="location" onchange="this.form.submit()">
+                    <option value="All">All Locations</option>
+                    <option th:each="loc : ${locations}"
+                            th:value="${loc}"
+                            th:text="${loc}"
+                            th:selected="${loc == selectedLocation}"></option>
+                </select>
+            </div>
+
+            <!-- Sort Dropdown -->
+            <div class="col-md-5">
+                <label for="sortBy" class="form-label fw-semibold text-dark">Sort By</label>
+                <select class="form-select" id="sortBy" name="sortBy" onchange="this.form.submit()">
+                    <option value="">Select Sort</option>
+                    <option value="name_asc" th:selected="${param.sortBy == 'name_asc'}">Name (A-Z)</option>
+                    <option value="name_desc" th:selected="${param.sortBy == 'name_desc'}">Name (Z-A)</option>
+                    <option value="date_asc" th:selected="${param.sortBy == 'date_asc'}">Date ↑</option>
+                    <option value="date_desc" th:selected="${param.sortBy == 'date_desc'}">Date ↓</option>
+                </select>
+            </div>
+
+            <!-- Clear Button -->
+            <div class="col-md-2">
+                <label class="form-label d-block invisible">Clear</label>
+                <a href="/dashboard" class="btn btn-outline-dark w-100">
+                    <i class="fas fa-times-circle me-1"></i> Clear
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Event Cards -->
+    <div class="container mt-4">
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            <div class="col" th:each="event : ${events}">
+                <a th:href="@{/events/{id}(id=${event.id})}" class="text-decoration-none event-card-link">
+                    <div class="event-card"
+                         th:style="|background-image: url('/images/Event_Card_images/${event.imageName != null ? event.imageName : 'default.jpg'}');|">
+
+                        <div class="event-card-content">
+                            <span class="badge bg-success mb-2" th:if="${!event.isExpired}">Active</span>
+                            <span class="badge bg-secondary mb-2" th:if="${event.isExpired}">Expired</span>
+
+                            <h5 class="fw-bold" th:text="${event.name}"></h5>
+                            <p class="small" th:text="${#strings.abbreviate(event.description, 100)}"></p>
+
+                            <p class="small mb-2">
+                                <strong>Location:</strong> <span th:text="${event.location}"></span><br>
+                                <strong>Date:</strong> <span th:text="${#temporals.format(event.eventDate, 'dd MMM yyyy HH:mm')}"></span>
+                            </p>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        document.getElementById('toggleFilterBtn').addEventListener('click', function () {
+            const filterBar = document.getElementById('filterBar');
+            filterBar.style.display = filterBar.style.display === 'none' ? 'block' : 'none';
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
